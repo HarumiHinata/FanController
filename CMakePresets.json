@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "configurePresets": [
+    { "name": "windows", "generator": "Visual Studio 17 2022", "architecture": "x64", "binaryDir": "${sourceDir}/build" },
+    { "name": "asan", "inherits": "windows", "binaryDir": "${sourceDir}/build-asan", "cacheVariables": { "FAN_ASAN": "ON" } }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "windows", "configuration": "Release" },
+    { "name": "asan", "configurePreset": "asan", "configuration": "RelWithDebInfo" }
+  ],
+  "testPresets": [
+    { "name": "release", "configurePreset": "windows", "configuration": "Release", "output": { "outputOnFailure": true } }
+  ]
+}
