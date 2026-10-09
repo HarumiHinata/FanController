@@ -8,12 +8,14 @@
 #include <chrono>
 #include <thread>
 #include <iostream>
+#include <intrin.h>
 #include "monitor/sensors.h"
 #include "../third_party/adl/adl_sdk.h"
 
 template<class T> T proc(HMODULE m,const char* name) { return reinterpret_cast<T>(GetProcAddress(m,name)); }
 void* __stdcall allocate(int n) { return std::malloc(n); }
 int main(int argc,char** argv) {
+    if(argc==2&&strcmp(argv[1],"--cpu-id")==0) { int cpu[4]{}; __cpuid(cpu,static_cast<int>(0x80000001)); std::printf("CPUID=%08x package=%x\n",cpu[0],(cpu[1]>>28)&15); return 0; }
     if(argc==2&&strcmp(argv[1],"--samples")==0) {
         fan::monitor::Reader reader;
         const auto value=[](float v) { if(fan::monitor::valid(v)) std::cout<<v; else std::cout<<"null"; };

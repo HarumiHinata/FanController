@@ -15,7 +15,7 @@ try {
         if(Test-Path -LiteralPath $linkPath) { $link=$shell.CreateShortcut($linkPath); if($link.TargetPath -eq $exe) { Remove-Item -LiteralPath $linkPath } }
     }
 } finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
-foreach($name in @('FanController.exe','README.md','Lenovo-Fan-Control.txt','verification-report.md','Uninstall.ps1')) {
+foreach($name in @('FanController.exe','README.md','Lenovo-Fan-Control.txt','AMD-ADL.txt','verification-report.md','Uninstall.ps1')) {
     $item=[IO.Path]::GetFullPath((Join-Path $actual $name))
     if([IO.Path]::GetDirectoryName($item) -ne $expected) { throw 'Unexpected uninstall path.' }
     if(Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item }
