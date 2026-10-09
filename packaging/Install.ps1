@@ -22,7 +22,7 @@ try {
 $uninstallKey='HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/FanController'
 New-Item -Path $uninstallKey -Force | Out-Null
 New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'FanController' -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value '0.3.0' -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value '0.3.1' -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $uninstallKey -Name InstallLocation -Value $destination -PropertyType String -Force | Out-Null
 $uninstallCommand='powershell.exe -NoProfile -File "'+(Join-Path $destination 'Uninstall.ps1')+'"'
 New-ItemProperty -Path $uninstallKey -Name UninstallString -Value $uninstallCommand -PropertyType String -Force | Out-Null

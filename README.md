@@ -1,4 +1,4 @@
-# FanController 0.3.0
+# FanController 0.3.1
 
 针对 Lenovo ideapad 720S-13ARR（81BR）、BIOS 6KCN40WW 的轻量 Windows 原生风扇控制器。
 

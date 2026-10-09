@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(FanController VERSION 0.3.0 LANGUAGES CXX RC)
+project(FanController VERSION 0.3.1 LANGUAGES CXX RC)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -41,5 +41,5 @@ install(FILES README.md third_party/notices/Lenovo-Fan-Control.txt third_party/n
 install(FILES packaging/Install.ps1 packaging/Uninstall.ps1 DESTINATION .)
 install(FILES docs/verification-report.md DESTINATION . RENAME verification-report.md)
 set(CPACK_GENERATOR ZIP)
-set(CPACK_PACKAGE_FILE_NAME "FanController-0.3.0-win64")
+set(CPACK_PACKAGE_FILE_NAME "FanController-0.3.1-win64")
 include(CPack)

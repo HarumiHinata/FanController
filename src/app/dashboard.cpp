@@ -116,17 +116,17 @@ void paint(Dashboard& a,HDC target,const RECT& rect) {
         text(a,g,L"风扇控制",48,107,192,25,13,Muted);
         line(g,265,113,265,239);
         const Color accent=a.state.mode==Mode::Boost?Orange:Blue;
-        Pen ring(Color(255,32,54,78),6); g.DrawEllipse(&ring,311.0f,111.0f,129.0f,129.0f);
-        Pen arc(accent,3); g.DrawArc(&arc,311.0f,111.0f,129.0f,129.0f,210.0f,120.0f);
+        Pen ring(Color(255,32,54,78),6); g.DrawEllipse(&ring,366.0f,111.0f,129.0f,129.0f);
+        Pen arc(accent,3); g.DrawArc(&arc,366.0f,111.0f,129.0f,129.0f,210.0f,120.0f);
         SolidBrush blade(Color(135,accent.GetR(),accent.GetG(),accent.GetB()));
-        for(int i=0;i<5;++i) { const auto saved=g.Save(); g.TranslateTransform(375.5f,175.5f); g.RotateTransform(i*72.0f); g.FillEllipse(&blade,-9.0f,-43.0f,21.0f,34.0f); g.Restore(saved); }
-        SolidBrush hub(accent); g.FillEllipse(&hub,367.5f,167.5f,16.0f,16.0f);
-        text(a,g,L"系统风扇",470,133,230,24,13,Muted);
-        text(a,g,mode(a),468,173,243,49,32,accent,FontStyleBold);
-        line(g,708,113,708,239);
-        text(a,g,L"Temperature",746,124,312,23,12,Muted,FontStyleRegular,StringAlignmentCenter);
-        text(a,g,number(a.metrics.cpuTemp),760,161,280,57,42,Foreground,FontStyleBold,StringAlignmentCenter);
-        text(a,g,L"°C",957,184,43,27,14,Muted);
+        for(int i=0;i<5;++i) { const auto saved=g.Save(); g.TranslateTransform(430.5f,175.5f); g.RotateTransform(i*72.0f); g.FillEllipse(&blade,-9.0f,-43.0f,21.0f,34.0f); g.Restore(saved); }
+        SolidBrush hub(accent); g.FillEllipse(&hub,422.5f,167.5f,16.0f,16.0f);
+        text(a,g,L"系统风扇",545,133,230,24,13,Muted);
+        text(a,g,mode(a),543,173,243,49,32,accent,FontStyleBold);
+        line(g,856,113,856,239);
+        text(a,g,L"Temperature",872,124,208,23,12,Muted,FontStyleRegular,StringAlignmentCenter);
+        text(a,g,number(a.metrics.cpuTemp),874,161,185,57,42,Foreground,FontStyleBold,StringAlignmentCenter);
+        text(a,g,L"°C",1020,184,43,27,14,Muted);
         round(g,24,286,258,418,18,Panel);
         text(a,g,L"实时频率",48,307,200,24,13,Muted);
         text(a,g,L"CPU",48,349,80,22,12,Blue,FontStyleBold);
