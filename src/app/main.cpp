@@ -121,8 +121,10 @@ void sync(App& app) {
     app.state=app.controller->snapshot();
     SetWindowTextW(app.buttons[0],app.state.autoConfirmed?L"原厂自动：已选择":L"原厂自动");
     SetWindowTextW(app.buttons[1],app.state.mode==fan::Mode::Boost && app.state.phase==fan::Phase::Ready?L"强冷高速：已选择":L"强冷高速");
+    SetWindowTextW(app.buttons[11],app.state.mode==fan::Mode::Quiet && app.state.phase==fan::Phase::Ready?L"安静：已选择":L"安静");
     EnableWindow(app.buttons[0],!app.closing && app.state.phase!=fan::Phase::Starting);
     EnableWindow(app.buttons[1],!app.closing && app.state.phase==fan::Phase::Ready);
+    EnableWindow(app.buttons[11],!app.closing && app.controller->quietAvailable());
     if(GetFocus()==app.window && IsWindowEnabled(app.buttons[0])) SetFocus(app.buttons[0]);
     if(app.state.revision!=app.loggedRevision) {
         app.loggedRevision=app.state.revision;
@@ -174,6 +176,8 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
     case MetricsChanged:
         if(app->monitor&&!app->closing) {
             app->metrics=app->monitor->latest(); app->identity=app->monitor->identity();
+            app->controller->updateTemperature(app->metrics.cpuTemp);
+            EnableWindow(app->buttons[11],app->controller->quietAvailable());
             app->history->append(app->metrics);
             if(!app->monitorLogged) { fan::log(app->identity.diagnostics); app->monitorLogged=true; }
             if(!app->mock&&GetTickCount64()-app->lastSave>=300000) { app->history->save(app->historyPath); app->lastSave=GetTickCount64(); }
@@ -197,7 +201,7 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
         if(id==IDCANCEL) { if(app->preferences) preferences(*app,false); return 0; }
         if(id==Settings) { preferences(*app,!app->preferences); return 0; }
         if(id==Hour1||id==Hour6||id==Hour24) app->hours=id==Hour1?1:(id==Hour6?6:24);
-        if(id==Auto || id==Boost) app->controller->request(id==Auto?fan::Mode::Auto:fan::Mode::Boost);
+        if(id==Auto || id==Boost || id==Quiet) app->controller->request(id==Auto?fan::Mode::Auto:(id==Quiet?fan::Mode::Quiet:fan::Mode::Boost));
         if(id==Exit) beginExit(*app);
         if(id==Startup && !app->mock) {
             const auto result=fan::setStartup(!app->startup);
@@ -214,7 +218,9 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
         if(lp==WM_LBUTTONUP || lp==WM_LBUTTONDBLCLK) show(*app);
         else if(lp==WM_RBUTTONUP || lp==WM_CONTEXTMENU) {
             HMENU menu=CreatePopupMenu(); AppendMenuW(menu,MF_STRING,Show,L"打开控制台"); AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-            AppendMenuW(menu,MF_STRING,Auto,L"原厂自动"); AppendMenuW(menu,MF_STRING | (app->state.phase==fan::Phase::Ready?0:MF_GRAYED),Boost,L"强冷 / 高速");
+            AppendMenuW(menu,MF_STRING,Auto,L"原厂自动");
+            AppendMenuW(menu,MF_STRING | (app->controller->quietAvailable()?0:MF_GRAYED),Quiet,L"安静");
+            AppendMenuW(menu,MF_STRING | (app->state.phase==fan::Phase::Ready?0:MF_GRAYED),Boost,L"强冷 / 高速");
             AppendMenuW(menu,MF_SEPARATOR,0,nullptr); AppendMenuW(menu,MF_STRING,Exit,L"恢复自动并退出");
             POINT point{}; GetCursorPos(&point); SetForegroundWindow(window);
             const int choice=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,point.x,point.y,0,window,nullptr); DestroyMenu(menu);

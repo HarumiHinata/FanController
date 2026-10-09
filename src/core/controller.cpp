@@ -1,4 +1,5 @@
 #include "core/controller.h"
+#include <cmath>
 #include <exception>
 
 namespace fan {
@@ -12,11 +13,33 @@ Snapshot Controller::snapshot() const { std::lock_guard lock(mutex_); return sna
 bool Controller::request(Mode mode) {
     { std::lock_guard lock(mutex_);
       if (stopping_ || suspended_) return false;
-      if (mode == Mode::Boost && (snapshot_.phase != Phase::Ready || restorePending_)) return false;
+      if (mode != Mode::Auto && (snapshot_.phase != Phase::Ready || restorePending_)) return false;
+      if (mode == Mode::Quiet && !quietSafeLocked()) return false;
       if (mode == Mode::Auto) restorePending_ = true;
       requested_ = mode; ++generation_;
     }
     cv_.notify_all(); return true;
+}
+bool Controller::quietSafeLocked() const {
+    return temperatureValid_ && temperatureC_ >= 1.0f && temperatureC_ < timing_.quietLimitC
+        && std::chrono::steady_clock::now()-temperatureAt_ <= timing_.quietMaxAge;
+}
+bool Controller::quietAvailable() const {
+    std::lock_guard lock(mutex_);
+    return !stopping_ && !suspended_ && snapshot_.phase == Phase::Ready && !restorePending_ && quietSafeLocked();
+}
+void Controller::updateTemperature(float celsius) {
+    bool restore=false;
+    {
+        std::lock_guard lock(mutex_);
+        temperatureValid_=std::isfinite(celsius) && celsius >= 1.0f && celsius <= 150.0f;
+        temperatureC_=celsius;
+        temperatureAt_=std::chrono::steady_clock::now();
+        if(requested_==Mode::Quiet && !quietSafeLocked()) {
+            requested_=Mode::Auto; restorePending_=true; ++generation_; restore=true;
+        }
+    }
+    if(restore) cv_.notify_all();
 }
 void Controller::suspend() {
     { std::lock_guard lock(mutex_); suspended_ = true; restorePending_ = true; requested_ = Mode::Auto; ++generation_; }
@@ -99,20 +122,34 @@ void Controller::run() {
                 generation = generation_; handled = generation;
                 calibrate = recalibrate_; recalibrate_ = false;
             }
-            publish(Phase::Applying, desired, desired == Mode::Auto ? L"正在恢复原厂自动控制…" : L"正在应用强冷模式…");
+            if(desired==Mode::Quiet) {
+                std::lock_guard lock(mutex_);
+                if(!quietSafeLocked()) { requested_=Mode::Auto; restorePending_=true; ++generation_; continue; }
+            }
+            publish(Phase::Applying, desired, desired == Mode::Auto ? L"正在恢复原厂自动控制…" :
+                (desired == Mode::Quiet ? L"正在应用安静模式…" : L"正在应用强冷模式…"));
             Result result;
-            if (desired == Mode::Auto || calibrate) result = applyAuto(calibrate);
+            if (desired == Mode::Auto || desired == Mode::Quiet || calibrate) result = applyAuto(calibrate);
             else if (active == Mode::Boost) result = applyAuto(false); // reset the dust-removal interval
             if (result.ok && desired == Mode::Boost) result = applyBoost(generation);
             if (!result.ok) {
-                if (result.error == 995) { active = Mode::Boost; deadline = std::chrono::steady_clock::time_point::max(); continue; }
+                if (result.error == 995) { active = Mode::Auto; deadline = std::chrono::steady_clock::time_point::max(); continue; }
                 handled = fault(result); active = Mode::Auto;
                 deadline = std::chrono::steady_clock::time_point::max(); continue;
             }
+            if(desired==Mode::Quiet) {
+                std::lock_guard lock(mutex_);
+                if(generation_!=generation || !quietSafeLocked()) {
+                    requested_=Mode::Auto; restorePending_=true; ++generation_;
+                    active=Mode::Auto; deadline=std::chrono::steady_clock::time_point::max(); continue;
+                }
+            }
             active = desired;
             if (active == Mode::Auto) { std::lock_guard lock(mutex_); if (generation_ == generation) restorePending_ = false; }
-            publish(Phase::Ready, active, active == Mode::Auto ? L"正常模式回读已确认 · 由原厂控制散热" : L"强冷模式回读已确认 · 持续维持中", 0, active == Mode::Auto, result.value);
-            deadline = active == Mode::Boost ? boostStarted_ + timing_.boostRefresh : std::chrono::steady_clock::time_point::max();
+            publish(Phase::Ready, active, active == Mode::Auto ? L"正常模式回读已确认 · 由原厂控制散热" :
+                (active == Mode::Quiet ? L"安静模式持续维持中" : L"强冷模式回读已确认 · 持续维持中"), 0, active == Mode::Auto, result.value);
+            deadline = active == Mode::Boost ? boostStarted_ + timing_.boostRefresh :
+                (active == Mode::Quiet ? std::chrono::steady_clock::now() + timing_.quietRefresh : std::chrono::steady_clock::time_point::max());
         }
         publish(Phase::Stopping, Mode::Auto, L"正在恢复原厂控制并退出…");
         const auto restored = applyAuto(false);

@@ -163,6 +163,9 @@ struct Reader::Impl {
                 if(!valid(s.fanRPM)&&perf.FanRPM>0) s.fanRPM=checked(perf.FanRPM,1,30000);
             }
         }
+        // On this Ryzen 2700U, the separately exposed CPU sensor is unsupported.
+        // The user has explicitly chosen the APU adapter reading as a provisional CPU temperature.
+        if(!valid(s.cpuTemp) && valid(s.gpuTemp)) s.cpuTemp=s.gpuTemp;
         lastSample=uptime;
         return s;
     }

@@ -2,5 +2,7 @@
 /build-asan/
 /dist/
 /artifacts/
+/_CPack_Packages/
+/FanController-*.zip
 /.vs/
 *.user

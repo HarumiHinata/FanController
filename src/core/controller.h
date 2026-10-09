@@ -23,7 +23,7 @@ public:
     virtual Result read() = 0;
     virtual bool isBoostValue(std::uint32_t value, std::uint32_t baseline) const { return value != baseline; }
 };
-enum class Mode { Auto, Boost };
+enum class Mode { Auto, Boost, Quiet };
 enum class Phase { Starting, Applying, Ready, Fault, Stopping, Stopped };
 struct Snapshot {
     Mode mode{Mode::Auto};
@@ -38,6 +38,9 @@ struct Timing {
     std::chrono::milliseconds settle{150};
     std::chrono::milliseconds retry{150};
     std::chrono::milliseconds boostRefresh{8500};
+    std::chrono::milliseconds quietRefresh{5000};
+    std::chrono::milliseconds quietMaxAge{25000};
+    float quietLimitC{80.0f};
 };
 class Controller {
 public:
@@ -47,6 +50,8 @@ public:
     Controller& operator=(const Controller&) = delete;
     void start();
     bool request(Mode mode);
+    void updateTemperature(float celsius);
+    bool quietAvailable() const;
     void suspend();
     void resume();
     void stop();
@@ -57,6 +62,7 @@ private:
     void publish(Phase phase, Mode mode, const std::wstring& detail, std::uint32_t error = 0, bool confirmed = false, std::uint32_t raw = 0);
     Result applyAuto(bool calibrate);
     Result applyBoost(std::uint64_t generation);
+    bool quietSafeLocked() const;
     std::uint64_t fault(const Result& reason);
     void run();
     std::unique_ptr<Backend> backend_;
@@ -75,5 +81,8 @@ private:
     bool baselineValid_{};
     std::uint32_t baseline_{};
     std::chrono::steady_clock::time_point boostStarted_{};
+    std::chrono::steady_clock::time_point temperatureAt_{};
+    float temperatureC_{};
+    bool temperatureValid_{};
 };
 }

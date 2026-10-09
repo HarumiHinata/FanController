@@ -30,7 +30,7 @@ std::wstring mode(const Dashboard& a) {
     if(a.state.phase==Phase::Fault) return L"连接异常";
     if(a.state.phase==Phase::Starting) return L"正在连接";
     if(a.state.phase==Phase::Applying) return L"正在切换";
-    return a.state.mode==Mode::Boost?L"强冷":L"自动";
+    return a.state.mode==Mode::Boost?L"强冷":(a.state.mode==Mode::Quiet?L"安静":L"自动");
 }
 void gear(Graphics& g,float cx,float cy,Color color) {
     Pen p(color,1.7f); g.DrawEllipse(&p,cx-6,cy-6,12.0f,12.0f); g.DrawEllipse(&p,cx-2,cy-2,4.0f,4.0f);
@@ -124,8 +124,9 @@ void paint(Dashboard& a,HDC target,const RECT& rect) {
         text(a,g,L"系统风扇",470,133,230,24,13,Muted);
         text(a,g,mode(a),468,173,243,49,32,accent,FontStyleBold);
         line(g,708,113,708,239);
-        text(a,g,L"CPU",746,124,140,23,12,Muted); text(a,g,number(a.metrics.cpuTemp),743,162,120,57,40,Foreground); text(a,g,L"°C",857,184,43,27,14,Muted);
-        text(a,g,L"GPU",921,124,140,23,12,Muted); text(a,g,number(a.metrics.gpuTemp),918,162,120,57,40,Foreground); text(a,g,L"°C",1032,184,43,27,14,Muted);
+        text(a,g,L"Temperature",746,124,312,23,12,Muted,FontStyleRegular,StringAlignmentCenter);
+        text(a,g,number(a.metrics.cpuTemp),760,161,280,57,42,Foreground,FontStyleBold,StringAlignmentCenter);
+        text(a,g,L"°C",957,184,43,27,14,Muted);
         round(g,24,286,258,418,18,Panel);
         text(a,g,L"实时频率",48,307,200,24,13,Muted);
         text(a,g,L"CPU",48,349,80,22,12,Blue,FontStyleBold);
@@ -166,6 +167,7 @@ void drawButton(Dashboard& a,const DRAWITEMSTRUCT& item) {
     const int id=static_cast<int>(item.CtlID);
     const bool disabled=(item.itemState&ODS_DISABLED)!=0,pressed=(item.itemState&ODS_SELECTED)!=0;
     const bool active=(id==Auto&&a.state.autoConfirmed)||(id==Boost&&a.state.mode==Mode::Boost&&a.state.phase==Phase::Ready)
+        ||(id==Quiet&&a.state.mode==Mode::Quiet&&a.state.phase==Phase::Ready)
         ||(id==Hour1&&a.hours==1)||(id==Hour6&&a.hours==6)||(id==Hour24&&a.hours==24)||(id==Settings&&a.preferences);
     const Color fill=active?Color(255,30,64,100):(pressed?Color(255,27,46,69):Panel);
     const Color ink=disabled?Color(255,66,83,106):(active?Blue:Foreground);

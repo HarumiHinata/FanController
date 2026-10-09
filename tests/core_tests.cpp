@@ -30,13 +30,28 @@ template<class Predicate> void until(Predicate predicate,const char* message) {
 int main() {
     try {
         Data data;
-        fan::Controller controller(std::make_unique<Fake>(data),{},fan::Timing{0ms,0ms,20ms});
+        fan::Controller controller(std::make_unique<Fake>(data),{},fan::Timing{0ms,0ms,20ms,10ms,80ms,80.0f});
         controller.start();
         until([&]{return controller.snapshot().phase==fan::Phase::Ready;},"startup");
         require(controller.snapshot().autoConfirmed && !data.boost,"must start automatic");
         const int before=data.writes;
         std::this_thread::sleep_for(30ms);
         require(data.writes==before,"automatic must not poll/write");
+        require(!controller.request(fan::Mode::Quiet),"quiet needs a fresh temperature");
+        controller.updateTemperature(60.0f);
+        require(controller.quietAvailable(),"quiet should become available with a safe temperature");
+        require(controller.request(fan::Mode::Quiet),"quiet accepted");
+        until([&]{return controller.snapshot().mode==fan::Mode::Quiet && controller.snapshot().phase==fan::Phase::Ready;},"quiet active");
+        const int quietWrites=data.writes;
+        until([&]{return data.writes>quietWrites;},"quiet periodically writes normal command");
+        controller.updateTemperature(81.0f);
+        until([&]{return controller.snapshot().phase==fan::Phase::Ready && controller.snapshot().mode==fan::Mode::Auto;},"overheat restores auto");
+        require(!controller.quietAvailable(),"overheated quiet unavailable");
+        controller.updateTemperature(60.0f);
+        require(controller.request(fan::Mode::Quiet),"quiet restart accepted");
+        until([&]{return controller.snapshot().phase==fan::Phase::Ready && controller.snapshot().mode==fan::Mode::Quiet;},"quiet restarted");
+        until([&]{return controller.snapshot().phase==fan::Phase::Ready && controller.snapshot().mode==fan::Mode::Auto;},"stale temperature restores auto");
+        controller.updateTemperature(60.0f);
         for(int i=0;i<10000;++i) {
             auto revision=controller.snapshot().revision;
             require(controller.request(fan::Mode::Boost),"boost accepted");
@@ -69,7 +84,7 @@ int main() {
         require(!data.boost && controller.snapshot().autoConfirmed,"stop must restore");
         require(data.overlaps==0,"all IO serialized");
         require(!controller.request(fan::Mode::Boost),"cannot restart stopped controller");
-        std::cout<<"PASS: 10000 boost/auto cycles, idle, suspend/resume, IO failure, readback mismatch, recovery, cancellation and shutdown; writes="<<data.writes<<"\n";
+        std::cout<<"PASS: quiet refresh and thermal fallback, 10000 boost/auto cycles, idle, suspend/resume, IO failure, readback mismatch, recovery, cancellation and shutdown; writes="<<data.writes<<"\n";
         return 0;
     } catch(const std::exception& e) { std::cerr<<"FAIL: "<<e.what()<<"\n"; return 1; }
 }
