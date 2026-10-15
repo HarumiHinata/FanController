@@ -18,6 +18,7 @@
 #include "platform/platform.h"
 #include "monitor/sensors.h"
 #include "app/dashboard.h"
+#include "platform/memory_optimizer.h"
 using namespace Gdiplus;
 using namespace fan::ui;
 namespace {
@@ -35,8 +36,15 @@ struct App : Dashboard {
     std::wstring snapshotPath,stressPath;
     std::filesystem::path historyPath;
     ULONGLONG lastSave{};
+    bool memoryBusy{};
+    std::unique_ptr<fan::memory::Task> memoryTask=std::make_unique<fan::memory::Task>();
     explicit App(bool demo,bool hidden,HANDLE own,HANDLE legacy):mutex(own),reference(legacy),background(hidden) { mock=demo; }
 };
+void startMemory(App& app) {
+    if(app.memoryBusy || app.mock) { if(app.mock) app.transient=L"演示模式不会执行内存整理"; return; }
+    if(!app.memoryTask->start()) return;
+    app.memoryBusy=true; EnableWindow(app.buttons[2],FALSE); app.transient=L"正在优化内存，可能短暂卡顿…"; SetTimer(app.window,3,100,nullptr); InvalidateRect(app.window,nullptr,FALSE);
+}
 bool savePreview(App& app, const std::wstring& path) {
     RECT rect{}; GetClientRect(app.window,&rect);
     HDC screen=GetDC(app.window), memory=CreateCompatibleDC(screen);
@@ -111,7 +119,7 @@ void trayIcon(App& app, bool add=false) {
 void show(App& app) { ShowWindow(app.window,SW_RESTORE); SetForegroundWindow(app.window); }
 void beginExit(App& app) {
     if(app.closing) return;
-    app.closing=true; app.controller->stop();
+    app.closing=true; if(app.memoryTask) app.memoryTask->cancel(); app.controller->stop();
     if(app.monitor) app.monitor->stop();
     if(!app.mock&&!app.historyPath.empty()) app.history->save(app.historyPath);
     for(auto button:app.buttons) EnableWindow(button,FALSE);
@@ -147,7 +155,7 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
         app->taskbarCreated=RegisterWindowMessageW(L"TaskbarCreated");
         constexpr std::array<const wchar_t*,12> titles{L"自动",L"强冷",L"内存优化",L"首选项",L"最近1小时",L"最近6小时",L"最近24小时",L"登录自启动",L"关闭至托盘",L"诊断日志",L"退出",L"安静"};
         for(size_t i=0;i<buttonIds.size();++i) app->buttons[i]=CreateWindowExW(0,L"BUTTON",titles[i],WS_CHILD|(i<7||i==11?WS_VISIBLE:0)|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(buttonIds[i])),GetModuleHandleW(nullptr),nullptr);
-        EnableWindow(app->buttons[0],FALSE); EnableWindow(app->buttons[1],FALSE); EnableWindow(app->buttons[2],FALSE);
+        EnableWindow(app->buttons[0],FALSE); EnableWindow(app->buttons[1],FALSE); EnableWindow(app->buttons[2],!app->mock);
         EnableWindow(app->buttons[11],FALSE);
         app->toTray=fan::closeToTray();
         if(app->mock) EnableWindow(app->buttons[7],FALSE);
@@ -200,6 +208,7 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
         app->transient.clear();
         if(id==IDCANCEL) { if(app->preferences) preferences(*app,false); return 0; }
         if(id==Settings) { preferences(*app,!app->preferences); return 0; }
+        if(id==Optimize) { startMemory(*app); return 0; }
         if(id==Hour1||id==Hour6||id==Hour24) app->hours=id==Hour1?1:(id==Hour6?6:24);
         if(id==Auto || id==Boost || id==Quiet) app->controller->request(id==Auto?fan::Mode::Auto:(id==Quiet?fan::Mode::Quiet:fan::Mode::Boost));
         if(id==Exit) beginExit(*app);
@@ -221,6 +230,8 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
             AppendMenuW(menu,MF_STRING,Auto,L"原厂自动");
             AppendMenuW(menu,MF_STRING | (app->controller->quietAvailable()?0:MF_GRAYED),Quiet,L"安静");
             AppendMenuW(menu,MF_STRING | (app->state.phase==fan::Phase::Ready?0:MF_GRAYED),Boost,L"强冷 / 高速");
+            AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+            AppendMenuW(menu,MF_STRING | (app->memoryBusy||app->closing||app->mock?MF_GRAYED:0),Optimize,app->memoryBusy?L"内存优化（进行中…）":L"内存优化");
             AppendMenuW(menu,MF_SEPARATOR,0,nullptr); AppendMenuW(menu,MF_STRING,Exit,L"恢复自动并退出");
             POINT point{}; GetCursorPos(&point); SetForegroundWindow(window);
             const int choice=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,point.x,point.y,0,window,nullptr); DestroyMenu(menu);
@@ -231,6 +242,10 @@ LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM wp,LPARAM lp) {
             ShowWindow(window,SW_HIDE);
         } else beginExit(*app); return 0;
     case WM_TIMER:
+        if(wp==3) {
+            if(auto result=app->memoryTask->take()) { KillTimer(window,3); app->memoryBusy=false; EnableWindow(app->buttons[2],!app->closing&&!app->mock); app->transient=fan::memory::describe(*result); fan::log(fan::memory::diagnostics(*result)); if(app->monitor) { app->metrics=app->monitor->latest(); app->history->append(app->metrics); } InvalidateRect(window,nullptr,FALSE); }
+            return 0;
+        }
         if(wp==2 && app->state.phase==fan::Phase::Ready && (!app->livePreview||app->history->size()>=3)) {
             KillTimer(window,2);
             if(app->previewMenu) preferences(*app,true);
@@ -260,6 +275,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int) {
     int previewHours=1,previewWidth=1120;
     std::wstring snapshotPath,stressPath;
     int argc{}; LPWSTR* args=CommandLineToArgvW(GetCommandLineW(),&argc);
+    if(argc==4 && wcscmp(args[1],L"--memory-optimize-worker")==0) { const int result=fan::memory::workerMain(args[2],args[3]); LocalFree(args); return result; }
     if(argc>1 && wcscmp(args[1],L"--guardian")==0) { const int result=fan::recoveryMain(argc,args); LocalFree(args); return result; }
     if(argc==2&&wcscmp(args[1],L"--exit")==0) { HWND existing=FindWindowW(ClassName,nullptr); if(existing) PostMessageW(existing,WM_COMMAND,Exit,0); LocalFree(args); return 0; }
     if(argc==2 && (wcscmp(args[1],L"--startup-on")==0 || wcscmp(args[1],L"--startup-off")==0)) {

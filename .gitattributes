@@ -1,0 +1,2 @@
+# Preserve generated extraction evidence byte-for-byte, including its recorded SHA-256.
+docs/research/pcl-memory/memory-methods.il -text -whitespace

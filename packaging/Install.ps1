@@ -6,7 +6,7 @@ $destination=Join-Path $env:LOCALAPPDATA 'Programs/FanController'
 $running=@(Get-Process -Name FanController -ErrorAction SilentlyContinue | Where-Object {$_.Path -eq (Join-Path $destination 'FanController.exe')})
 if($running.Count) { throw 'Please choose Restore automatic and exit in FanController before installing.' }
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
-foreach($name in @('FanController.exe','README.md','Lenovo-Fan-Control.txt','AMD-ADL.txt','Uninstall.ps1','verification-report.md')) {
+foreach($name in @('FanController.exe','README.md','Lenovo-Fan-Control.txt','AMD-ADL.txt','PCL2-Memory-Optimization.txt','Uninstall.ps1','verification-report.md')) {
     $item=Join-Path $PSScriptRoot $name
     if(Test-Path -LiteralPath $item) { Copy-Item -LiteralPath $item -Destination (Join-Path $destination $name) -Force }
 }

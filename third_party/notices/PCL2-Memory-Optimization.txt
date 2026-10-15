@@ -1,0 +1,6 @@
+FanController 的手动内存整理功能参考了 Plain Craft Launcher 2（PCL2）2.10.3 的公开行为及用户提供的 2.10.3.0 二进制。
+
+本项目重新实现 Windows 系统调用流程，没有包含 PCL2 的 UI、游戏启动逻辑或程序集。PCL2 项目及其作者的使用指南见：
+https://github.com/Hex-Dragon/PCL2/blob/2.10.3/LICENCE
+
+该文件仅作来源说明；PCL2 的原始使用指南保留其作者声明的权利与条件。

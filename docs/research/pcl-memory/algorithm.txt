@@ -1,0 +1,65 @@
+PCL 2.10.3.0 memory optimization — behavioral transcription of recovered IL
+This is not a runnable extracted library. See memory-methods.il for evidence.
+
+MemoryOptimizeInternal(showHint):
+  Require IsAdmin(), otherwise throw.
+  identity = WindowsIdentity.GetCurrent((TokenAccessLevels)40)
+  try:
+    privilege = { Count=1, Luid=0, Attributes=2 /* ENABLED */ }
+    LookupPrivilegeValue(null, "SeProfileSingleProcessPrivilege", &privilege.Luid)
+    AdjustTokenPrivileges(identity.Token, false, &privilege, sizeof(privilege), ...)
+    Require lookup succeeded, adjustment succeeded, and last Win32 error == 0.
+  finally:
+    Dispose(identity)
+  Optionally display progress hint.
+  for command from 2 through 4, inclusive:
+    Log command start.
+    pinned = GCHandle.Alloc(boxed Int32(command), Pinned)
+    status = checked conversion UInt32 -> Int32 of:
+      NtSetSystemInformation(80, pinned.AddrOfPinnedObject(), sizeof(Int32))
+    pinned.Free()
+    if status != 0: throw stage error.
+
+MemoryOptimize(showHint):
+  If shared busy flag is set: optionally hint; return.
+  Set busy flag.
+  If already admin:
+    before = AvailablePhysicalMemory
+    try MemoryOptimizeInternal(showHint)
+    catch exception: log; return
+    finally clear busy flag
+    delta = AvailablePhysicalMemory - before
+  Else:
+    try delta = Int64(RunAsAdmin("--memory")) * 1024
+    catch exception: log; optionally hint permission failure; return
+    finally clear busy flag
+    if delta < 0: return
+  Log delta and current available memory.
+  If delta > 0 and showHint:
+    Display Round(delta * 0.8), plus current available memory.
+  Else if showHint:
+    Display "already optimal" wording.
+
+RunAsAdmin(argument):
+  Start current PCL executable using ProcessStartInfo.Verb = "runas".
+  Pass argument; wait for process exit; return ExitCode.
+
+--memory entry (official 2.10.3 source; not recovered startup method):
+  before = AvailablePhysicalMemory
+  try MemoryOptimizeInternal(false)
+  catch: show error; Exit(-1)
+  after = AvailablePhysicalMemory
+  if after < before: Exit(0)
+  else Exit((after - before) / 1024)
+
+Native enum names cross-checked against phnt ntexapi.h:
+  SystemMemoryListInformation = 80
+  MemoryEmptyWorkingSets = 2
+  MemoryFlushModifiedList = 3
+  MemoryPurgeStandbyList = 4
+
+Migration differences proposed in PLAN-3.md:
+  Preserve UInt32 NTSTATUS; avoid checked signed conversion overflow.
+  Use C++ stack buffer and RAII; restore privilege state.
+  Use atomic/mutex task guard and structured IPC instead of KB exit code.
+  Report signed observed delta; omit the 0.8 scale and "optimal" claim.

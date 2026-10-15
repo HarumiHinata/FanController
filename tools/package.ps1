@@ -7,6 +7,7 @@ $files=@{
     'README.md'='README.md'
     'third_party/notices/Lenovo-Fan-Control.txt'='Lenovo-Fan-Control.txt'
     'third_party/notices/AMD-ADL.txt'='AMD-ADL.txt'
+    'third_party/notices/PCL2-Memory-Optimization.txt'='PCL2-Memory-Optimization.txt'
     'packaging/Install.ps1'='Install.ps1'
     'packaging/Uninstall.ps1'='Uninstall.ps1'
     'docs/verification-report.md'='verification-report.md'
